@@ -713,7 +713,7 @@
     <div class="topbar">
       <div>
         <div class="topbar-title">لوحة الحسومات</div>
-        <div class="topbar-sub">قسط شهري ثابت 1,000 ريال — يبدأ من يونيو 2026</div>
+        <div class="topbar-sub">حسم شهري مخصص لكل موظف — يبدأ من يونيو 2026</div>
       </div>
       <button class="btn-add" onclick="openModal()">
         <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
@@ -795,6 +795,7 @@
                 <th>الجزاء</th>
                 <th>ملاحظة</th>
                 <th>القيمة</th>
+                <th>الحسم/شهر</th>
                 <th>المتبقي</th>
                 <th>شهر يونيو 2026</th>
                 <th>إجراءات</th>
@@ -841,9 +842,13 @@
           <label>ملاحظة</label>
           <textarea id="f-note" placeholder="أي ملاحظات إضافية..."></textarea>
         </div>
-        <div class="field full">
+        <div class="field">
           <label>القيمة الكلية (ريال)</label>
           <input id="f-val" type="number" min="0" placeholder="مثال: 5000">
+        </div>
+        <div class="field">
+          <label>الحسم الشهري (ريال)</label>
+          <input id="f-monthly" type="number" min="0" placeholder="مثال: 1000">
         </div>
       </div>
     </div>
@@ -893,7 +898,7 @@ function monthLabel(i){
 }
 
 function totalPaid(e){
-  return Object.values(e.payments || {}).filter(Boolean).length * 1000;
+  return Object.values(e.payments || {}).filter(Boolean).length * (e.monthly || 1000);
 }
 
 function remaining(e){
@@ -944,7 +949,7 @@ function renderTable(){
   if(th) th.textContent = mi >= 0 ? monthLabel(mi) : 'يونيو 2026';
 
   if(!list.length){
-    tbody.innerHTML = `<tr><td colspan="9">
+    tbody.innerHTML = `<tr><td colspan="10">
       <div class="empty-state">
         <div class="empty-icon">
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -986,6 +991,7 @@ function renderTable(){
       <td style="color:var(--muted);font-size:12px">${e.penalty||'—'}</td>
       <td style="color:var(--muted);font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.note||''}">${e.note||'—'}</td>
       <td><span class="amount">${(e.value||0).toLocaleString()}</span></td>
+      <td><span class="amount" style="color:var(--amber)">${(e.monthly||0).toLocaleString()}</span></td>
       <td>
         <span class="remaining-chip ${done?'done':'active'}">
           ${done
@@ -1038,12 +1044,13 @@ function togglePay(i){
   const prev = employees[i].payments[mi];
   employees[i].payments[mi] = !prev;
   persist();
-  notify(prev ? 'تم التراجع عن الخصم' : 'تم تسجيل خصم 1,000 ريال ✓', prev ? 'error' : 'success');
+  const amt = (employees[i].monthly || 1000).toLocaleString();
+  notify(prev ? 'تم التراجع عن الخصم' : `تم تسجيل خصم ${amt} ريال ✓`, prev ? 'error' : 'success');
   renderTable();
 }
 
 function openModal(){
-  ['f-id','f-name','f-vio','f-pen','f-note','f-val'].forEach(id => document.getElementById(id).value='');
+  ['f-id','f-name','f-vio','f-pen','f-note','f-val','f-monthly'].forEach(id => document.getElementById(id).value='');
   document.getElementById('modal-add').classList.add('open');
   setTimeout(()=>document.getElementById('f-name').focus(), 50);
 }
@@ -1056,12 +1063,15 @@ function saveEmployee(){
   const vio   = document.getElementById('f-vio').value.trim();
   const pen   = document.getElementById('f-pen').value.trim();
   const note  = document.getElementById('f-note').value.trim();
-  const val   = parseFloat(document.getElementById('f-val').value) || 0;
+  const val     = parseFloat(document.getElementById('f-val').value) || 0;
+  const monthly = parseFloat(document.getElementById('f-monthly').value) || 0;
 
   if(!name){ notify('اسم الموظف مطلوب', 'error'); return; }
   if(val <= 0){ notify('القيمة يجب أن تكون أكبر من صفر', 'error'); return; }
+  if(monthly <= 0){ notify('الحسم الشهري يجب أن يكون أكبر من صفر', 'error'); return; }
+  if(monthly > val){ notify('الحسم الشهري لا يمكن أن يتجاوز القيمة الكلية', 'error'); return; }
 
-  employees.push({ empId, name, violation: vio, penalty: pen, note, value: val, payments: {} });
+  employees.push({ empId, name, violation: vio, penalty: pen, note, value: val, monthly, payments: {} });
   persist();
   closeModal();
   notify('تمت إضافة الموظف بنجاح', 'success');
@@ -1089,7 +1099,7 @@ function showHist(i){
     if(paid) hasPaid = true;
     html += `<div class="hist-item">
       <span class="hist-month">${monthLabel(m)}</span>
-      <span class="hist-chip ${paid?'paid':'unpaid'}">${paid ? 'تم خصم 1,000 ر' : 'لم يُخصم'}</span>
+      <span class="hist-chip ${paid?'paid':'unpaid'}">${paid ? `تم خصم ${(e.monthly||1000).toLocaleString()} ر` : 'لم يُخصم'}</span>
     </div>`;
   }
 
